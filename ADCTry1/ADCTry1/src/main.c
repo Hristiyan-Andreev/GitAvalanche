@@ -14,22 +14,28 @@
 #include "stm32l1xx_adc.h"
 
 #define A0 GPIO_Pin_0
-uint8_t SysClockSource;
+uint32_t SysClockSource;
 
 static __IO uint32_t TimingDelay;		// Variable to store desired delay
 GPIO_InitTypeDef GPIOPortA;  			//Structure variable to save configuration settings for Port A
 ADC_InitTypeDef ADCInit;				// Struct for ADC Config
+ADC_CommonInitTypeDef ADCSetup;			// Struct for ADC prescaler clock value
 RCC_ClocksTypeDef RCC_Clocks;			// Struct for getting clock values
+uint8_t SysClock;
 			
 void Init(void)
 {
-	RCC_GetClocksFreq(&RCC_Clocks);						/* Get the clock values
-																	Default values:
-															SYSCLK_Frequency	uint32_t	32000000
-															HCLK_Frequency	uint32_t	32000000
-															PCLK1_Frequency	uint32_t	32000000
-															PCLK2_Frequency	uint32_t	32000000	*/
+	DBGMCU_Config(DBGMCU_SLEEP | DBGMCU_STOP | DBGMCU_STANDBY, ENABLE);  // Allow debugging during low power mode
 
+
+	SysClock = RCC_GetSYSCLKSource();
+
+	RCC_GetClocksFreq(&RCC_Clocks);						/* Get the clock values
+																		Default values:
+																SYSCLK_Frequency	uint32_t	32000000
+																HCLK_Frequency	uint32_t	32000000
+																PCLK1_Frequency	uint32_t	32000000
+																PCLK2_Frequency	uint32_t	32000000	*/
 
 //************************ Enable peripherals *********************************
 
@@ -57,6 +63,11 @@ void Init(void)
 	ADCInit.ADC_ExternalTrigConvEdge = ADC_ExternalTrigConvEdge_None; // Don't wait for external trigger to convert
 	ADC_Init(ADC1, &ADCInit);					// Initialize the ADC Init struct for ADC1
 
+	ADCSetup.ADC_Prescaler = ADC_Prescaler_Div2; 	//Divide the HCLK by 4 to be th ADC clock speed -> Fadc = 32/4 = 8 Mhz
+	ADC_CommonInit(&ADCSetup);
+
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_0, 1, ADC_SampleTime_9Cycles);  //Configure the channel (PA.0, to be read)
+
 	ADC_Cmd(ADC1, ENABLE);						// Enable the ADC1
 
 	 while(ADC_GetFlagStatus(ADC1, ADC_FLAG_ADONS) == RESET);  // Wait untill ADC1 is ON -> ADC Flag ADC on
@@ -76,7 +87,6 @@ void Delay(uint32_t nTime)
 int main(void)
 {
 	Init();
-
 	while(1)
 	{
 
