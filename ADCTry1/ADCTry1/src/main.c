@@ -71,7 +71,7 @@ void Init(void)
 
 	ADC_Cmd(ADC1, ENABLE);						// Enable the ADC1
 
-	 while(ADC_GetFlagStatus(ADC1, ADC_FLAG_ADONS) == RESET);  // Wait until ADC1 is ON -> ADC Flag ADC on
+	while(ADC_GetFlagStatus(ADC1, ADC_FLAG_ADONS) == RESET);  // Wait untill ADC1 is ON -> ADC Flag ADC on
 
 	if (SysTick_Config(SystemCoreClock / 1000))
 	{
