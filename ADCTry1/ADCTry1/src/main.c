@@ -22,6 +22,8 @@ ADC_InitTypeDef ADCInit;				// Struct for ADC Config
 ADC_CommonInitTypeDef ADCSetup;			// Struct for ADC prescaler clock value
 RCC_ClocksTypeDef RCC_Clocks;			// Struct for getting clock values
 uint8_t SysClock;
+
+uint16_t Ain;							// Data from ADC convertion
 			
 void Init(void)
 {
@@ -66,11 +68,10 @@ void Init(void)
 	ADCSetup.ADC_Prescaler = ADC_Prescaler_Div2; 	//Divide the HCLK by 4 to be th ADC clock speed -> Fadc = 32/4 = 8 Mhz
 	ADC_CommonInit(&ADCSetup);
 
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_0, 1, ADC_SampleTime_9Cycles);  //Configure the channel (PA.0, to be read)
 
 	ADC_Cmd(ADC1, ENABLE);						// Enable the ADC1
 
-	 while(ADC_GetFlagStatus(ADC1, ADC_FLAG_ADONS) == RESET);  // Wait untill ADC1 is ON -> ADC Flag ADC on
+	 while(ADC_GetFlagStatus(ADC1, ADC_FLAG_ADONS) == RESET);  // Wait until ADC1 is ON -> ADC Flag ADC on
 
 	if (SysTick_Config(SystemCoreClock / 1000))
 	{
@@ -84,12 +85,20 @@ void Delay(uint32_t nTime)
 	while(TimingDelay != 0);		// Wait until TimingDelay gets reduced to 0 by SysTick_Handler()
 }
 
+uint16_t readADC1(uint8_t channel)
+{
+	ADC_RegularChannelConfig(ADC1, channel , 1, ADC_SampleTime_24Cycles);  //Configure the channel (PA.0, to be read)
+	ADC_SoftwareStartConv(ADC1);										// Start convertion
+	while(ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC) == SET);						// Wait until convertion is done
+	return ADC_GetConversionValue(ADC1);
+}
+
 int main(void)
 {
 	Init();
 	while(1)
 	{
-
+		Ain = readADC1(ADC_Channel_0);
 	}
 }
 
