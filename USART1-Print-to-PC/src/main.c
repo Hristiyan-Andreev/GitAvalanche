@@ -28,21 +28,21 @@ void init()
 	GPIO_PinAFConfig(GPIOA, GPIO_PinSource2, GPIO_AF_USART2);
 	GPIO_DeInit(GPIOA);
 	GPIO_StructInit(&PortAStruct);
-	PortAStruct.GPIO_Pin = GPIO_Pin_2;				// PA.2 Connected to ST-Link on Nucleo 64 board
+	PortAStruct.GPIO_Pin = GPIO_Pin_2 | GPIO_Pin_3;				// PA.2 Connected to ST-Link on Nucleo 64 board
 	PortAStruct.GPIO_Mode = GPIO_Mode_AF;			// Mode -> alternative function
-//	PortAStruct.GPIO_OType = GPIO_OType_PP;			// Output type -> Push pull
-//	PortAStruct.GPIO_PuPd = GPIO_PuPd_NOPULL;			// Pull Up
+	PortAStruct.GPIO_OType = GPIO_OType_PP;			// Output type -> Push pull
+	PortAStruct.GPIO_PuPd = GPIO_PuPd_UP;			// Pull Up
 	PortAStruct.GPIO_Speed = GPIO_Speed_40MHz;		// Maximum speed
 	GPIO_Init(GPIOA, &PortAStruct);					// Initialize PA.2 -> Tx with above settings
 
 // ***********************  Setup the Rx of USART2 *********************************
-	GPIO_PinAFConfig(GPIOA, GPIO_PinSource3, GPIO_AF_USART2);
+/*	GPIO_PinAFConfig(GPIOA, GPIO_PinSource3, GPIO_AF_USART2);
 	GPIO_DeInit(GPIOA);
 	GPIO_StructInit(&PortAStruct);
 	PortAStruct.GPIO_Pin = GPIO_Pin_3;
 	PortAStruct.GPIO_Mode = GPIO_Mode_AF;
 	PortAStruct.GPIO_PuPd = GPIO_PuPd_UP;
-	GPIO_Init(GPIOA, &PortAStruct);
+	GPIO_Init(GPIOA, &PortAStruct);  */
 
 // ***********************  Setup the USART2 *********************************
 
@@ -84,9 +84,10 @@ int main(void)
 	uint16_t Data = 2;
 	init();
 	USART_Cmd(USART2, ENABLE);						// Start the USART2 communication
+
 	while(1)
 	{
 		PutCharUSART(USART2, Data);
-		Delay(250);
+		//Delay(250);
 	}
 }
