@@ -54,8 +54,6 @@ void initDMA(void)
 
   /* Enable DMA1 channel1 */
   DMA_Cmd(DMA1_Channel1, ENABLE);
-
-
 }
 
 void initADC1(void)
@@ -118,11 +116,6 @@ void Delay(uint32_t nTime)
 	while(TimingDelay != 0);
 }
 
-void StartADCMeasure(void)
-{
-	ADC_SoftwareStartConv(ADC1);
-}
-
 void ClearADCDataBuffer (void)
 {
 	int index = 0;
@@ -148,12 +141,11 @@ void ResetDMA(void)
 {
 	DMA_Cmd(DMA1_Channel1, DISABLE);
 	Delay(1);
-	DMA_SetCurrDataCounter(DMA1_Channel1, 1024);
+	DMA_SetCurrDataCounter(DMA1_Channel1, ADCBufferSize);
 	DMA_Cmd(DMA1_Channel1, ENABLE);
 }
 int main(void)
 {
-	uint16_t DMATransfers;
 	Init();
 	ADC_RegularChannelConfig(ADC1, Ain0Channel , 1, ADC_SampleTime_24Cycles); //Configure the channel (PA.0, to be read)
 	while(1)
