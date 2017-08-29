@@ -28,29 +28,29 @@ static uint32_t ADCDataBuffer[ADCBufferSize];		// Array to store data from ADC
 
 void initDMA(void)
 {
-  /*------------------------ DMA1 configuration ------------------------------*/
+	/*------------------------ DMA1 configuration ------------------------------*/
 
-  /* DMA1 channel1 configuration */
-  DMA_DeInit(DMA1_Channel1);								// Reset all registers to default values
+	/* DMA1 channel1 configuration */
+	DMA_DeInit(DMA1_Channel1);								// Reset all registers to default values
 
-  DMASetup.DMA_PeripheralBaseAddr = (uint32_t)&ADC1->DR;				// Read from which register
-  DMASetup.DMA_MemoryBaseAddr = (uint32_t)&ADCDataBuffer;  // Write to which address
-  DMASetup.DMA_DIR = DMA_DIR_PeripheralSRC;					// Read from peripheral write to memory
-  DMASetup.DMA_BufferSize = ADCBufferSize;					// How many transfers from register to memory
-  DMASetup.DMA_PeripheralInc = DMA_PeripheralInc_Disable;	// Don`t increment the peripheral address
-  /*Memory increment doesn't work - buffer[i] oveflow */
-  DMASetup.DMA_MemoryInc = DMA_MemoryInc_Enable;			// Increment the memory address Buffer[i] -> Buffer[i+1]
+	DMASetup.DMA_PeripheralBaseAddr = (uint32_t)&ADC1->DR;				// Read from which register
+	DMASetup.DMA_MemoryBaseAddr = (uint32_t)&ADCDataBuffer;  // Write to which address
+	DMASetup.DMA_DIR = DMA_DIR_PeripheralSRC;					// Read from peripheral write to memory
+	DMASetup.DMA_BufferSize = ADCBufferSize;					// How many transfers from register to memory
+	DMASetup.DMA_PeripheralInc = DMA_PeripheralInc_Disable;	// Don`t increment the peripheral address
+	/*Memory increment doesn't work - buffer[i] oveflow */
+	DMASetup.DMA_MemoryInc = DMA_MemoryInc_Enable;			// Increment the memory address Buffer[i] -> Buffer[i+1]
 
-  DMASetup.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;	// 16 bits
-  DMASetup.DMA_MemoryDataSize = DMA_MemoryDataSize_Word;			// 32 bits
-  DMASetup.DMA_Mode = DMA_Mode_Normal;						// When all conversions are done, start again
-  DMASetup.DMA_Priority = DMA_Priority_High;				// High priority of the channel
-  DMASetup.DMA_M2M = DMA_M2M_Disable;						// Disable memory to memory transfer
+	DMASetup.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;	// 16 bits
+	DMASetup.DMA_MemoryDataSize = DMA_MemoryDataSize_Word;			// 32 bits
+	DMASetup.DMA_Mode = DMA_Mode_Normal;						// When all conversions are done, start again
+	DMASetup.DMA_Priority = DMA_Priority_High;				// High priority of the channel
+	DMASetup.DMA_M2M = DMA_M2M_Disable;						// Disable memory to memory transfer
 
-  DMA_Init(DMA1_Channel1, &DMASetup);
+	DMA_Init(DMA1_Channel1, &DMASetup);
 
-  /* Enable DMA1 channel1 */
-  DMA_Cmd(DMA1_Channel1, ENABLE);
+	/* Enable DMA1 channel1 */
+	DMA_Cmd(DMA1_Channel1, ENABLE);
 }
 
 void initADC1(void)
@@ -87,16 +87,42 @@ void initADC1(void)
 
 void initTriggerMeasure(void)
 {
-		GPIO_StructInit(&GPIOPortA);		 	  // Fill the variable with default settings
-		GPIOPortA.GPIO_Pin = TriggerMeasurePin;   // Specify LED2, PA.5
-		GPIOPortA.GPIO_Mode = GPIO_Mode_OUT;      //Config output mode
-		GPIOPortA.GPIO_OType = GPIO_OType_PP;	  //Config Push-Pull mode
-		GPIOPortA.GPIO_PuPd = GPIO_PuPd_DOWN;	  // Pull down resistor
-		GPIOPortA.GPIO_Speed = GPIO_Speed_2MHz;   // Low speed
-		GPIO_Init(TriggerMeasurePort, &GPIOPortA);			// Initialize Port A with the settings saved in the structure variable
+	GPIO_StructInit(&GPIOPortA);		 	  // Fill the variable with default settings
+	GPIOPortA.GPIO_Pin = TriggerMeasurePin;   // Specify LED2, PA.5
+	GPIOPortA.GPIO_Mode = GPIO_Mode_OUT;      //Config output mode
+	GPIOPortA.GPIO_OType = GPIO_OType_PP;	  //Config Push-Pull mode
+	GPIOPortA.GPIO_PuPd = GPIO_PuPd_DOWN;	  // Pull down resistor
+	GPIOPortA.GPIO_Speed = GPIO_Speed_2MHz;   // Low speed
+	GPIO_Init(TriggerMeasurePort, &GPIOPortA);			// Initialize Port A with the settings saved in the structure variable
 
 }
 
+void initTimers(void)
+{
+// *************************** Set up Parameters ***************************************
+	int Tickus = 1;					// Desired tick duration in microSeconds
+	int inputTick = 1/32;			// Tick duration of system core clock in microSeconds
+
+// *************************** Set up time base (ticks) ********************************
+	TimeBaseSetup.TIM_Prescaler = 32;					// Divide system core freq 32 times 32Mhz -> 1Mhz
+	TimeBaseSetup.TIM_ClockDivision = TIM_CKD_DIV1;		// No further division of the freq
+	TimeBaseSetup.TIM_CounterMode = TIM_CounterMode_Up; // Counting up
+	TimeBaseSetup.TIM_Period = 10000;		// 10 000 us = 10ms measuring time
+
+// *************************** Set up timer triggering *********************************
+	TIM_ETRConfig(TIM2, TIM_ExtTRGPSC_OFF, TIM_ExtTRGPolarity_NonInverted, 0); // Timer2, no division, positive polarity, no filtering
+	TIM_SelectInputTrigger(TIM2, TIM_TS_ETRF); // Timer2, select external trigger source as TRGI
+	TIM_SelectSlaveMode(TIM2, TIM_SlaveMode_Trigger); // Timer2, configure in trigger mode (Start counting when TRGI is rising edge)
+
+// Configure PA.0 for Timer2 Trigger
+	GPIOPortA.GPIO_Pin = GPIO_Pin_0;
+	GPIOPortA.GPIO_Mode = GPIO_Mode_AF;
+	GPIOPortA.GPIO_Speed = GPIO_Speed_2MHz;
+	GPIOPortA.GPIO_OType = GPIO_OType_PP;
+	GPIOPortA.GPIO_PuPd = GPIO_PuPd_NOPULL;
+	GPIO_Init(GPIOA, &GPIOPortA);
+	GPIO_PinAFConfig(GPIOA, GPIO_PinSource0, GPIO_AF_TIM2);
+}
 void Init(void)
 {
 	DBGMCU_Config(DBGMCU_SLEEP | DBGMCU_STOP | DBGMCU_STANDBY, ENABLE);  // Allow debugging during low power mode
@@ -104,6 +130,7 @@ void Init(void)
 	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);    // Enable clock for DMA1
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1, ENABLE); // Enable clock for ADC 1
 	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE); // Enable clock for GPIOA
+	RCC_APB2PeriphCockCmd(RCC_APB2Periph_TIM9, ENABLE); // Enable clock for Timer9
 
 // *********************** Configure DMA ***************************************
 	initDMA();
