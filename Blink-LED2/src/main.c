@@ -42,8 +42,6 @@ int main(void)
 {
 	Init();
 
-
-
 	while(1)
 	{
 		GPIO_ToggleBits(GPIOA, LED2);

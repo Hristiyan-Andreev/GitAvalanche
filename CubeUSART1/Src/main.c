@@ -64,7 +64,6 @@ static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN 0 */
 
 /* USER CODE END 0 */
-uint8_t uartData = 2;
 
 int main(void)
 {
@@ -102,9 +101,7 @@ int main(void)
   while (1)
   {
   /* USER CODE END WHILE */
-	  HAL_UART_Transmit(&huart2, &uartData, 7, 5000);
-	  //HAL_UART_Transmit_IT(&huart2, &uartData, 7);
-	  HAL_Delay(100);
+
   /* USER CODE BEGIN 3 */
 
   }

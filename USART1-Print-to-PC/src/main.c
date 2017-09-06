@@ -88,6 +88,6 @@ int main(void)
 	while(1)
 	{
 		PutCharUSART(USART2, Data);
-		//Delay(250);
+		Delay(250);
 	}
 }

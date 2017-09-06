@@ -6,7 +6,9 @@
 #include "stm32l1xx_adc.h"
 
 //**************************** GPIO Pins ************************************
-#define A0 GPIO_Pin_0
+#define Ain0 GPIO_Pin_0
+#define ADCPort GPIOA
+#define Dout2 GPIO_Pin_10
 
 // *************************** Init Structures ******************************
 
@@ -25,75 +27,89 @@ __IO uint8_t RxData;					// Data from USART2 data receiving
 static enum
 {
 	AwaitingCommand = 0,
-	StartMeasure = 1,
-	GenerateSignal = 2,
+	CommandReceived = 1,
+	StartMeasure = 2,
 	SendData = 3
 }State;
+
 
 void initUSART2(void)
 {
 	RCC_AHBPeriphClockCmd( RCC_AHBPeriph_GPIOA, ENABLE);
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2, ENABLE);
 
-	/* Configure USART2 Tx (PA.02) as alternate function push-pull */
-		GPIO_InitStructure.GPIO_Pin = GPIO_Pin_2 | GPIO_Pin_3;
-		GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
-		GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
-		GPIO_InitStructure.GPIO_OType = GPIO_OType_OD;
-		GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;
-		GPIO_Init(GPIOA, &GPIO_InitStructure);
+/* Configure USART2 Tx (PA.02) as alternate function push-pull */
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_2 | GPIO_Pin_3;
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
+	GPIO_InitStructure.GPIO_OType = GPIO_OType_OD;
+	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;
+	GPIO_Init(GPIOA, &GPIO_InitStructure);
 
-		// Map USART2 to A.02
-		GPIO_PinAFConfig(GPIOA, GPIO_PinSource2, GPIO_AF_USART2);
-		GPIO_PinAFConfig(GPIOA, GPIO_PinSource3, GPIO_AF_USART2);
+	// Map USART2 to PA.2 and PA.3
+	GPIO_PinAFConfig(GPIOA, GPIO_PinSource2, GPIO_AF_USART2);
+	GPIO_PinAFConfig(GPIOA, GPIO_PinSource3, GPIO_AF_USART2);
 
-		USART_InitStructure.USART_BaudRate = 10000;
-		USART_InitStructure.USART_WordLength = USART_WordLength_8b;
-		USART_InitStructure.USART_StopBits = USART_StopBits_1;
-		USART_InitStructure.USART_Parity = USART_Parity_No;
-		USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
-		USART_InitStructure.USART_Mode = USART_Mode_Tx | USART_Mode_Rx;
-		/* Configure USART */
-		USART_Init(USART2, &USART_InitStructure);
-		/* Enable the USART */
-		USART_Cmd(USART2, ENABLE);
+	USART_InitStructure.USART_BaudRate = 10000;
+	USART_InitStructure.USART_WordLength = USART_WordLength_8b;
+	USART_InitStructure.USART_StopBits = USART_StopBits_1;
+	USART_InitStructure.USART_Parity = USART_Parity_No;
+	USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
+	USART_InitStructure.USART_Mode = USART_Mode_Tx | USART_Mode_Rx;
+	/* Configure USART */
+	USART_Init(USART2, &USART_InitStructure);
+	/* Enable the USART */
+	USART_Cmd(USART2, ENABLE);
 
-		/* USART2 Receive interrupt enable */
-		USART_ITConfig(USART2, USART_IT_RXNE, ENABLE);
+	/* USART2 Receive interrupt enable */
+	USART_ITConfig(USART2, USART_IT_RXNE, ENABLE);
 }
 
 void initADC1(void)
 {
 	GPIO_StructInit(&GPIOPortA);	// Fill the variable with default settings
-		GPIOPortA.GPIO_Pin = A0;
-		GPIOPortA.GPIO_Mode = GPIO_Mode_AN;
-		GPIOPortA.GPIO_PuPd = GPIO_PuPd_NOPULL;
-		GPIO_Init(GPIOA, &GPIOPortA);
+	GPIOPortA.GPIO_Pin = Ain0;
+	GPIOPortA.GPIO_Mode = GPIO_Mode_AN;
+	GPIOPortA.GPIO_PuPd = GPIO_PuPd_NOPULL;
+	GPIO_Init(ADCPort, &GPIOPortA);
 
-		ADC_DeInit(ADC1);    // Reset all ADC settings to default
+	ADC_DeInit(ADC1);    // Reset all ADC settings to default
 
-		ADCInit.ADC_Resolution = ADC_Resolution_10b; // Select resolution
-		ADCInit.ADC_ScanConvMode = DISABLE;			// Disable scan mode -> Measure only one input
-		ADCInit.ADC_ContinuousConvMode = DISABLE;   // Disable continious mode -> measure only once
-		ADCInit.ADC_DataAlign = ADC_DataAlign_Right; // Align the 10bit data to the right
-		ADCInit.ADC_ExternalTrigConvEdge = ADC_ExternalTrigConvEdge_None; // Don't wait for external trigger to convert
-		ADC_Init(ADC1, &ADCInit);					// Initialize the ADC Init struct for ADC1
+	ADCInit.ADC_Resolution = ADC_Resolution_10b; // Select resolution
+	ADCInit.ADC_ScanConvMode = DISABLE;			// Disable scan mode -> Measure only one input
+	ADCInit.ADC_ContinuousConvMode = ENABLE;   // Disable continious mode -> measure only once
+	ADCInit.ADC_DataAlign = ADC_DataAlign_Right; // Align the 10bit data to the right
+	ADCInit.ADC_ExternalTrigConvEdge = ADC_ExternalTrigConvEdge_None;; // Wait for raising edge to convert
+//	ADCInit.ADC_ExternalTrigConv = ADC_ExternalTrigConv_T2_TRGO; // Trigger from Timer2
+	ADC_Init(ADC1, &ADCInit);					// Initialize the ADC Init struct for ADC1
 
-		ADCSetup.ADC_Prescaler = ADC_Prescaler_Div2; 	//Divide the HCLK by 4 to be th ADC clock speed -> Fadc = 32/4 = 8 Mhz
-		ADC_CommonInit(&ADCSetup);
+	ADCSetup.ADC_Prescaler = ADC_Prescaler_Div2; 	//Divide the HCLK by 2 to be th ADC clock speed -> Fadc = 32/2 = 16 Mhz
+	ADC_CommonInit(&ADCSetup);
 
 
-		ADC_Cmd(ADC1, ENABLE);						// Enable the ADC1
+	ADC_Cmd(ADC1, ENABLE);						// Enable the ADC1
 
-		while(ADC_GetFlagStatus(ADC1, ADC_FLAG_ADONS) == RESET);  // Wait untill ADC1 is ON -> ADC Flag ADC on
+	while(ADC_GetFlagStatus(ADC1, ADC_FLAG_ADONS) == RESET);  // Wait untill ADC1 is ON -> ADC Flag ADC on
+}
+
+void initPulseGen(void)
+{
+	GPIOPortA.GPIO_Pin = Dout2;
+	GPIOPortA.GPIO_Mode = GPIO_Mode_OUT;
+	GPIOPortA.GPIO_OType = GPIO_OType_OD;
+	GPIOPortA.GPIO_PuPd = GPIO_PuPd_DOWN;
+	GPIOPortA.GPIO_Speed = GPIO_Speed_400KHz;
+
+	GPIO_Init(GPIOA, &GPIOPortA);
 }
 
 void initNVIC(void)
 {
-	NVICInit.NVIC_IRQChannel = USART2_IRQn;
+	NVICInit.NVIC_IRQChannel = USART2_IRQn; 		// Enable USART2 Interrupts
 	NVICInit.NVIC_IRQChannelPreemptionPriority = 0;
 	NVICInit.NVIC_IRQChannelSubPriority = 0;
-	NVICInit.NVIC_IRQChannelCmd = ENABLE;
+	NVICInit.NVIC_IRQChannelCmd = ENABLE;			// Enable global interrupts
+	NVIC_Init(&NVICInit);
 }
 
 void Init(void)
@@ -137,6 +153,7 @@ uint16_t readADC1(uint8_t channel)
 
 int main(void)
 {
+	State = AwaitingCommand;
 	Init();
 
 	while(1)
@@ -145,9 +162,9 @@ int main(void)
 		{
 		case AwaitingCommand:
 			break;
-		case StartMeasure:
+		case CommandReceived:
 			break;
-		case GenerateSignal:
+		case StartMeasure:
 			break;
 		case SendData:
 			break;
@@ -159,6 +176,7 @@ void USART2_IRQHandler(void)
 {
 	if(USART_GetITStatus(USART2, USART_IT_RXNE) != RESET)
 	{
-		RxData = USART_RecieveData(USART2);
+		RxData = USART_ReceiveData(USART2);
+		State = CommandReceived;
 	}
 }
