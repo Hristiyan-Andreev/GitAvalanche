@@ -29,7 +29,6 @@ DMA_InitTypeDef DMASetup;				// Struct for DMA config
 
 TIM_TimeBaseInitTypeDef TimeBaseSetup; 	// Struct for TimeBase setup
 TIM_ICInitTypeDef InputCaptureSetup;	// Struct for input capture setup
-
 NVIC_InitTypeDef NVICSetup;				// Struct for NVIC config
 
 typedef enum STATE {ReadyToMeasure, MeasureStarted, MeasureEnded} STATE;
@@ -99,6 +98,7 @@ void initADC1(void)
 
 void initTriggerMeasure(void)
 {
+//***************************** Init trigger pin ************************************************
 	GPIO_StructInit(&GPIOPortA);		 	  // Fill the variable with default settings
 	GPIOPortA.GPIO_Pin = TriggerMeasurePin;   // Specify LED2, PA.5
 	GPIOPortA.GPIO_Mode = GPIO_Mode_OUT;      //Config output mode
@@ -107,7 +107,17 @@ void initTriggerMeasure(void)
 	GPIOPortA.GPIO_Speed = GPIO_Speed_2MHz;   // Low speed
 	GPIO_Init(TriggerMeasurePort, &GPIOPortA);			// Initialize Port A with the settings saved in the structure variable
 
+//***************************** Init pin for debugging ******************************************
+	GPIO_StructInit(&GPIOPortA);		 	  // Fill the variable with default settings
+	GPIOPortA.GPIO_Pin = GPIO_Pin_8;   // Specify LED2, PA.5
+	GPIOPortA.GPIO_Mode = GPIO_Mode_OUT;      //Config output mode
+	GPIOPortA.GPIO_OType = GPIO_OType_PP;	  //Config Push-Pull mode
+	GPIOPortA.GPIO_PuPd = GPIO_PuPd_DOWN;	  // Pull down resistor
+	GPIOPortA.GPIO_Speed = GPIO_Speed_2MHz;   // Low speed
+	GPIO_Init(GPIOA, &GPIOPortA);			// Initialize Port A with the settings saved in the structure variable
+
 }
+
 void initTimers2(void)
 {
 // *************************** Set up timer triggering *********************************
@@ -121,13 +131,13 @@ void initTimers2(void)
 	TIM_SelectSlaveMode(TIM2, TIM_SlaveMode_Trigger);  // Timer2, configure in trigger mode (Start counting when TRGI is rising edge)
 
 // *************************** Set up time base of TIM2 (stopping TIM3) (ticks) ********************************
-	TimeBaseSetup.TIM_Prescaler = 64;					// Divide system core freq 32 times 32Mhz -> 1Mhz
+	TimeBaseSetup.TIM_Prescaler = 32;					// Divide system core freq 32 times 32Mhz -> 1Mhz
 	TimeBaseSetup.TIM_ClockDivision = TIM_CKD_DIV1;		// No further division of the freq
 	TimeBaseSetup.TIM_CounterMode = TIM_CounterMode_Down; // Counting down
 	TimeBaseSetup.TIM_Period = ADCMeasureTime;			// 10000us
 	TIM_TimeBaseInit(TIM2, &TimeBaseSetup);
 
-// *************************** Configure PA.6 for Timer3 Trigger ************************************************
+// *************************** Configure PA.0 for Timer2 Trigger ************************************************
 	GPIOPortA.GPIO_Pin = GPIO_Pin_0;
 	GPIOPortA.GPIO_Mode = GPIO_Mode_AF;
 	GPIOPortA.GPIO_Speed = GPIO_Speed_2MHz;
@@ -151,7 +161,7 @@ void initTimers3(void)
 	TIM_SelectSlaveMode(TIM3, TIM_SlaveMode_Trigger); // Timer2, configure in trigger mode (Start counting when TRGI is rising edge)
 
 // *************************** Set up time base of TIM3 (control of ADC) (ticks) ********************************
-	TimeBaseSetup.TIM_Prescaler = 32;					// Divide system core freq 32 times 32Mhz -> 1Mhz
+	TimeBaseSetup.TIM_Prescaler = 64;					// Divide system core freq 32 times 32Mhz -> 1Mhz
 	TimeBaseSetup.TIM_ClockDivision = TIM_CKD_DIV1;		// No further division of the freq
 	TimeBaseSetup.TIM_CounterMode = TIM_CounterMode_Down; // Counting down
 	TimeBaseSetup.TIM_Period = ADCSampleTime;		// 1us
@@ -214,9 +224,9 @@ void Delay_ms(uint32_t nTime)
 void TriggerMeasure()
 {
 	GPIO_SetBits(TriggerMeasurePort, TriggerMeasurePin);
-	State = MeasureStarted;
 	Delay_ms(1);
 	GPIO_ResetBits(TriggerMeasurePort, TriggerMeasurePin);
+	State = MeasureStarted;
 }
 
 void ResetDMA(void)
@@ -256,6 +266,7 @@ int main(void)
 			ClearADCDataBuffer();
 			readingCycles++;
 			MeasureCycles = 0;
+			GPIO_ResetBits(GPIOA, GPIO_Pin_8);
 		}
 
 		Delay_ms(1000);
@@ -287,6 +298,7 @@ void TIM2_IRQHandler (void)
 	{
 		TIM3->CR1 &= (~TIM_CR1_CEN);
 		TIM_ClearITPendingBit(TIM2,TIM_IT_Update);		// Clear the TIM3 Update event IT flag -> same as top
+		GPIO_SetBits(GPIOA, GPIO_Pin_8);
 		State = MeasureEnded;
 	}
 }

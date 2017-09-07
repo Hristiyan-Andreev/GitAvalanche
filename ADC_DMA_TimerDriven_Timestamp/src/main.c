@@ -4,7 +4,8 @@
 #include "stm32l1xx_gpio.h"
 #include "stm32l1xx_dma.h"
 #include "stm32l1xx_tim.h"
-			
+
+//********************************** Define user constants ************************************
 #define Ain1 GPIO_Pin_1
 #define Ain1Channel ADC_Channel_1
 #define ADCPort GPIOA
@@ -13,6 +14,7 @@
 #define TriggerMeasurePin GPIO_Pin_10
 #define TriggerMeasurePort GPIOA
 
+//********************************* Define structures for initiliazation **********************
 GPIO_InitTypeDef GPIOPortA;  			// Struct for ADC1 GPIOA Config
 ADC_InitTypeDef ADCInit;				// Struct for ADC Config
 ADC_CommonInitTypeDef ADCSetup;			// Struct for ADC prescaler clock value
@@ -21,14 +23,13 @@ DMA_InitTypeDef DMASetup;				// Struct for DMA config
 
 TIM_TimeBaseInitTypeDef TimeBaseSetup; 	// Struct for TimeBase setup
 TIM_ICInitTypeDef InputCaptureSetup;	// Struct for input capture setup
+NVIC_InitTypeDef NVICSetup;				// Struct for NVIC config
 
 typedef enum STATE {ReadyToMeasure, MeasureStarted, MeasureEnded} STATE;
 STATE State;
 
-NVIC_InitTypeDef NVICSetup;				// Struct for NVIC config
-
 static uint32_t ADCDataBuffer[ADCBufferSize];		// Array to store data from ADC
-
+uint32_t GlobalInterruptsDisabled;		// 0 if they are enabled, 1 if they are disabled
 
 void initDMA(void)
 {
@@ -91,13 +92,23 @@ void initADC1(void)
 
 void initTriggerMeasure(void)
 {
+//***************************** Init trigger pin ************************************************
 	GPIO_StructInit(&GPIOPortA);		 	  // Fill the variable with default settings
-	GPIOPortA.GPIO_Pin = TriggerMeasurePin;   // Specify LED2, PA.5
+	GPIOPortA.GPIO_Pin = TriggerMeasurePin;   // Specify pin
 	GPIOPortA.GPIO_Mode = GPIO_Mode_OUT;      //Config output mode
 	GPIOPortA.GPIO_OType = GPIO_OType_PP;	  //Config Push-Pull mode
 	GPIOPortA.GPIO_PuPd = GPIO_PuPd_DOWN;	  // Pull down resistor
 	GPIOPortA.GPIO_Speed = GPIO_Speed_2MHz;   // Low speed
 	GPIO_Init(TriggerMeasurePort, &GPIOPortA);			// Initialize Port A with the settings saved in the structure variable
+
+//***************************** Init pin for debugging ******************************************
+	GPIO_StructInit(&GPIOPortA);		 	  // Fill the variable with default settings
+	GPIOPortA.GPIO_Pin = GPIO_Pin_8;   			// Specify LED2, PA.5
+	GPIOPortA.GPIO_Mode = GPIO_Mode_OUT;      //Config output mode
+	GPIOPortA.GPIO_OType = GPIO_OType_PP;	  //Config Push-Pull mode
+	GPIOPortA.GPIO_PuPd = GPIO_PuPd_DOWN;	  // Pull down resistor
+	GPIOPortA.GPIO_Speed = GPIO_Speed_2MHz;   // Low speed
+	GPIO_Init(GPIOA, &GPIOPortA);			// Initialize Port A with the settings saved in the structure variable
 
 }
 
@@ -129,9 +140,6 @@ void initTimers(void)
 	InputCaptureSetup.TIM_ICSelection = TIM_ICSelection_DirectTI;
 	TIM_ICInit(TIM3, &InputCaptureSetup);
 
-
-
-// Configure PA.6 for Timer2 Trigger
 	GPIOPortA.GPIO_Pin = GPIO_Pin_6;
 	GPIOPortA.GPIO_Mode = GPIO_Mode_AF;
 	GPIOPortA.GPIO_Speed = GPIO_Speed_2MHz;
@@ -163,10 +171,8 @@ void Init(void)
 	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE); // Enable clock for GPIOA
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM3, ENABLE); // Enable clock for Timer9
 
-	if (SysTick_Config(SystemCoreClock / 1000))
-	{
-		while(1);
-	}
+// ********************** Configure SysTick Timer ******************************
+	if (SysTick_Config(SystemCoreClock / 1000))	{ while(1);	}
 
 // ********************** Configure interrupt controller ****************************
 	initNVIC();
@@ -235,12 +241,17 @@ void TriggerMeasure()
 	Delay_ms(1);
 	GPIO_ResetBits(TriggerMeasurePort, TriggerMeasurePin);
 }
+
+void CheckAndDisableInterrupts(void) { GlobalInterruptsDisabled = __get_PRIMASK();__disable_irq(); }
+void CheckAndEnableInterrupts(void) { if(!GlobalInterruptsDisabled) __enable_irq(); }
 int main(void)
 {
+//	CheckAndDisableInterrupts();
 	uint32_t readingCycles = 0;
 	uint8_t RCC_Source = RCC_GetSYSCLKSource();
 	Init();
 	ADC_RegularChannelConfig(ADC1, Ain1Channel , 1, ADC_SampleTime_4Cycles); //Configure the channel (PA.1, to be read)
+//	CheckAndEnableInterrupts();
 	while(1)
 	{
 		State = ReadyToMeasure;
@@ -248,6 +259,7 @@ int main(void)
 		Delay_ms(50);
 		if (State == MeasureEnded)
 		{
+			GPIO_ResetBits(GPIOA, GPIO_Pin_8);
 			ResetADC1();
 			ResetDMA();
 			ClearADCDataBuffer();
@@ -274,6 +286,7 @@ void TIM3_IRQHandler (void)
 	if(TIM_GetITStatus(TIM3, TIM_IT_Update) != RESET)  // If counter update event had occurred
 	{
 		StopADCMeasure();
+		GPIO_SetBits(GPIOA, GPIO_Pin_8);
 		TIM_ClearFlag(TIM3, TIM_FLAG_Update);			// Clear the TIM3 Update event flag
 		TIM_ClearITPendingBit(TIM3,TIM_IT_Update);		// Clear the TIM3 Update event IT flag -> same as top
 	}
