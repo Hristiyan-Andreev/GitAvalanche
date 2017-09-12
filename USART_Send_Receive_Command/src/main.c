@@ -17,7 +17,7 @@ typedef enum STATE {ReadyToMeasure, MeasureStarted, MeasureEnded, SendingStarted
 STATE State;
 
 typedef enum USARTSTATE{Idle, ComReceived, ParamReceived, SendBufferStart, SendByte1, SendByte2,
-	SendByteComplete, SendBufferComplete} USARTSTATE;
+	SendBufferComplete} USARTSTATE;
 USARTSTATE USARTState;
 
 #define SendStartChar "S"
@@ -74,6 +74,7 @@ void Init(void)
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2, ENABLE);
 
 	initUSART();
+	initNVIC();
 }
 static __IO uint32_t TimingDelay;
 
@@ -85,40 +86,47 @@ void Delay_ms(uint32_t nTime)
 
 void SendChar(char Data)
 {
-
+	while(USART_GetFlagStatus(USART2, USART_FLAG_TXE) == RESET); // Wait until Tx Buffer is empty
+	USART_SendData(USART2, Data);								// Load data into Data register
+	while(USART_GetFlagStatus(USART2, USART_FLAG_TC) == RESET); // Wait until Transfer Complete flag is SET
 }
 
 void SendBufferUSART(uint16_t Buffer)
 {
 	uint16_t CurrentDigit = 0;
+
 	if((State == SendingStarted) && (USARTState == SendBufferStart))
 	{
 		SendChar(SendStartChar);
-		while (USART_GetITStatus(USART2, USART_IT_TXE) == RESET);	// Wait until TXE is SET -> Transmit register not empty
-//		USART_ClearITPendingBit(USART2, USART_IT_TXE);
 		USARTState = SendByte1;
 	}
+
 	while (CurrentDigit <= ADCBufferSize)
 	{
-		if((State == SendingStarted) && (USARTState == SendByte1))
+		switch(USARTState)
 		{
+		case SendByte1:
 			SendChar(ADCDataBuffer[CurrentDigit] & 0x00FF);				// Send lower byte
-			while (USART_GetITStatus(USART2, USART_IT_TXE) == RESET);	// Wait until TXE is SET -> Transmit register not empty
 			USARTState = SendByte2;
-		}
-		if((State == SendingStarted) && (USARTState == SendByte2))
-		{
+		case SendByte2:
 			SendChar(ADCDataBuffer[CurrentDigit] & 0xFF00);				// Send upper byte
-			while (USART_GetITStatus(USART2, USART_IT_TXE) == RESET);	// Wait until TXE is SET -> Transmit register not empty
 			CurrentDigit++;
 			USARTState = SendByte1;
 		}
+		USARTState = SendBufferComplete;
+	}
 
+	if((State == SendingStarted) && (USARTState == SendBufferComplete))
+	{
+		SendChar(SendEndChar);
+		USARTState = Idle;
+		State = SendingEnded;
 	}
 }
 int main(void)
 {
 	USARTState = Idle;
+
 	while(1)
 	{
 
@@ -144,11 +152,5 @@ USART2_IRQn_Handler(void)
 		}
 	}
 
-	if(USART_GetITStatus(USART2, USART_IT_TXE))
-	{
-
-
-
-	}
 }
 
