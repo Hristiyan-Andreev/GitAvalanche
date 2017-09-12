@@ -7,7 +7,7 @@
 GPIO_InitTypeDef GPIOSetup;
 USART_InitTypeDef USARTSetup;
 NVIC_InitTypeDef NVICSetup;				// Struct for NVIC config
-
+										// PATENCE
 typedef enum STATE {ReadyToMeasure, MeasureStarted, MeasureEnded, SendingStarted, SendingEnded} STATE;
 STATE State;
 
