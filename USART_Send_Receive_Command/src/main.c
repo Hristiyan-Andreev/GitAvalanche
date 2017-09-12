@@ -4,10 +4,15 @@
 #include "stm32l1xx_nucleo.h"
 #include "stm32l1xx_usart.h"
 
+
+
 GPIO_InitTypeDef GPIOSetup;
 USART_InitTypeDef USARTSetup;
 NVIC_InitTypeDef NVICSetup;				// Struct for NVIC config
-										// PATENCE
+
+#define ADCBufferSize 10700
+static uint32_t ADCDataBuffer[ADCBufferSize];
+
 typedef enum STATE {ReadyToMeasure, MeasureStarted, MeasureEnded, SendingStarted, SendingEnded} STATE;
 STATE State;
 
@@ -47,7 +52,7 @@ void initUSART(void)
 
 // **************************** Configure interrupts ***************************************
 	USART_ITConfig(USART2, USART_IT_RXNE, ENABLE);
-	USART_ITConfig(USART2, USART_IT_TXE, ENABLE);
+//	USART_ITConfig(USART2, USART_IT_TXE, ENABLE);
 }
 void initNVIC(void)
 {
@@ -85,7 +90,31 @@ void SendChar(char Data)
 
 void SendBufferUSART(uint16_t Buffer)
 {
+	uint16_t CurrentDigit = 0;
+	if((State == SendingStarted) && (USARTState == SendBufferStart))
+	{
+		SendChar(SendStartChar);
+		while (USART_GetITStatus(USART2, USART_IT_TXE) == RESET);	// Wait until TXE is SET -> Transmit register not empty
+//		USART_ClearITPendingBit(USART2, USART_IT_TXE);
+		USARTState = SendByte1;
+	}
+	while (CurrentDigit <= ADCBufferSize)
+	{
+		if((State == SendingStarted) && (USARTState == SendByte1))
+		{
+			SendChar(ADCDataBuffer[CurrentDigit] & 0x00FF);				// Send lower byte
+			while (USART_GetITStatus(USART2, USART_IT_TXE) == RESET);	// Wait until TXE is SET -> Transmit register not empty
+			USARTState = SendByte2;
+		}
+		if((State == SendingStarted) && (USARTState == SendByte2))
+		{
+			SendChar(ADCDataBuffer[CurrentDigit] & 0xFF00);				// Send upper byte
+			while (USART_GetITStatus(USART2, USART_IT_TXE) == RESET);	// Wait until TXE is SET -> Transmit register not empty
+			CurrentDigit++;
+			USARTState = SendByte1;
+		}
 
+	}
 }
 int main(void)
 {
@@ -117,12 +146,8 @@ USART2_IRQn_Handler(void)
 
 	if(USART_GetITStatus(USART2, USART_IT_TXE))
 	{
-		if(State == SendingStarted)
-		{
-			SendChar(SendStartChar);
-			USARTState = SendBufferStart;
-			USART_ClearITPendingBit(USART2, USART_IT_TXE);
-		}
+
+
 
 	}
 }
