@@ -158,11 +158,14 @@ int main(void)
 		switch(State)
 		{
 		case ReadyToMeasure:
-			if(ReceivedCommand == 'S')
+			if(USARTState == ParamReceived)
 			{
-				State = MeasureStarted;
-				StuffBuffer();
-				State = MeasureEnded;
+				if(ReceivedCommand == 'S')
+				{
+					State = MeasureStarted;
+					StuffBuffer();
+					State = MeasureEnded;
+				}
 			}
 			break;
 		case MeasureEnded:
