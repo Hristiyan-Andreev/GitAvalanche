@@ -20,11 +20,13 @@ typedef enum USARTSTATE{Idle, ComReceived, ParamReceived, SendBufferStart, SendB
 	SendBufferComplete} USARTSTATE;
 USARTSTATE USARTState;
 
-#define SendStartChar "S"
-#define SendEndChar "E"
+char SendStartChar = 'S';
+char SendEndChar = 'E';
 
-uint16_t ReceivedCommand;
-uint16_t CommandParam1;
+char ReceivedCommand;
+char CommandParam1;
+
+uint32_t GlobalInterruptsDisabled;		// 0 if they are enabled, 1 if they are disabled
 
 void initUSART(void)
 {
@@ -108,10 +110,12 @@ void SendBufferUSART(uint16_t Buffer)
 		case SendByte1:
 			SendChar(ADCDataBuffer[CurrentDigit] & 0x00FF);				// Send lower byte
 			USARTState = SendByte2;
+			/* no break */
 		case SendByte2:
 			SendChar(ADCDataBuffer[CurrentDigit] & 0xFF00);				// Send upper byte
 			CurrentDigit++;
 			USARTState = SendByte1;
+			break;
 		}
 		USARTState = SendBufferComplete;
 	}
@@ -123,17 +127,58 @@ void SendBufferUSART(uint16_t Buffer)
 		State = SendingEnded;
 	}
 }
+void CheckAndDisableInterrupts(void) { GlobalInterruptsDisabled = __get_PRIMASK();__disable_irq(); }
+void CheckAndEnableInterrupts(void) { if(!GlobalInterruptsDisabled) __enable_irq(); }
+void StuffBuffer (void)
+{
+	uint16_t index = 0;
+	for(index = 0; index<= ADCBufferSize; index++)
+	{
+		ADCDataBuffer[index] = index;
+	}
+}
+void ClearADCDataBuffer (void)
+{
+	int index = 0;
+	for(index = 0; index<= ADCBufferSize; index++)
+	{
+		ADCDataBuffer[index] = 0;
+	}
+}
 int main(void)
 {
+	CheckAndDisableInterrupts();
 	USARTState = Idle;
+	Init();
+	State = ReadyToMeasure;
+	CheckAndEnableInterrupts();
 
 	while(1)
 	{
-
+		switch(State)
+		{
+		case ReadyToMeasure:
+			if(ReceivedCommand == 'S')
+			{
+				State = MeasureStarted;
+				StuffBuffer();
+				State = MeasureEnded;
+			}
+			break;
+		case MeasureEnded:
+			State = SendingStarted;
+			USARTState = SendBufferStart;
+			SendBufferUSART(&ADCDataBuffer);
+			State = SendingEnded;
+			break;
+		case SendingEnded:
+			State = ReadyToMeasure;
+			break;
+		}
 	}
 }
 
-USART2_IRQn_Handler(void)
+void USART2_IRQn_Handler(void)
 {
 	if(USART_GetITStatus(USART2, USART_IT_RXNE))
 	{
@@ -141,6 +186,7 @@ USART2_IRQn_Handler(void)
 		{
 		case Idle:
 			ReceivedCommand = USART_ReceiveData(USART2);
+			if(ReceivedCommand != 'S')  { SendChar('E'); }
 			USARTState = ComReceived;
 			USART_ClearITPendingBit(USART2, USART_IT_RXNE);
 			break;

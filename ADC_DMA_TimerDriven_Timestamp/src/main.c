@@ -155,7 +155,7 @@ void initTimers(void)
 void initNVIC(void)
 {
 // ****************** Setup the Timer count complete interrupt *****************************
-	NVICSetup.NVIC_IRQChannel = TIM3_IRQn; 		// Enable USART2 Interrupts
+	NVICSetup.NVIC_IRQChannel = TIM3_IRQn; 		// Enable TIM3 Interrupt
 	NVICSetup.NVIC_IRQChannelPreemptionPriority = 5;
 	NVICSetup.NVIC_IRQChannelSubPriority = 5;
 	NVICSetup.NVIC_IRQChannelCmd = ENABLE;			// Enable global interrupts
@@ -185,8 +185,6 @@ void Init(void)
 
 // ********************** Configure timer system *************************************
 	initTimers();
-
-
 
 // ********************** Configure SysTick Timer ******************************
 
@@ -248,7 +246,6 @@ int main(void)
 {
 //	CheckAndDisableInterrupts();
 	uint32_t readingCycles = 0;
-	uint8_t RCC_Source = RCC_GetSYSCLKSource();
 	Init();
 	ADC_RegularChannelConfig(ADC1, Ain1Channel , 1, ADC_SampleTime_4Cycles); //Configure the channel (PA.1, to be read)
 //	CheckAndEnableInterrupts();
